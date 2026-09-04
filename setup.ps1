@@ -38,20 +38,25 @@ function Download-File {
         $FilePath = "$DestinationPath\$FileName"
         $ProgressPreference = 'SilentlyContinue'
         Invoke-WebRequest -Uri $Url -OutFile $FilePath -ErrorAction Stop
-        Write-Host "`t$FilePath was downloaded."
+        Write-Host "$FilePath was downloaded."
         return $FilePath
     } catch { Write-Error "Failed to download file from $Url. Error: $($_.Exception.Message)" }
 }
 
 $RootPath = Read-Host -Prompt "Enter directory path. Press Enter for C:\PowPyLa"
-If ([string]::IsNullOrEmpty($RootPath)) { $RootPath = "C:\PowPyLa" }
+If ([string]::IsNullOrEmpty($RootPath)) { 
+    $RootPath = "C:\PowPyLa"
+    Write-Host "`tSelected path: $RootPath" -foregroundcolor green
+}
 $null = New-Item -Path $RootPath -ItemType Directory -Force
 
 
 #region download Python
 $PyVer = Read-Host -Prompt "Enter Python Version. Press Enter for latest"
-
-If ([string]::IsNullOrEmpty($PyVer)) { $PyVer = "Latest" }
+If ([string]::IsNullOrEmpty($PyVer)) { 
+    $PyVer = "Latest"
+    Write-Host "`tSelected Python version: $PyVer" -foregroundcolor green
+}
 
 # get Python versions from the official Python api
 $PyBaseUrl = 'https://www.python.org/api/v2/downloads/release/?is_published=true'
@@ -67,9 +72,9 @@ $WantedVersion = $versionData |
     Select-Object -Last 1
 
 If (-not $WantedVersion) {
-    Write-Host "`tNo matching Python version found for '$PyVer'." -ForegroundColor Red
+    Write-Host "No matching Python version found for '$PyVer'." -ForegroundColor Red
     return
-} else {Write-Host "`tDownload Python $($WantedVersion.name)..."}
+} else {Write-Host "Download Python $($WantedVersion.name)..."}
 
 # get download link for the desired version
 $PyDownloadUrl = 'https://www.python.org/api/v2/downloads/release_file/'
@@ -80,11 +85,14 @@ $rname = Read-Host -Prompt "Clarify architecture (64, 32, arm64). Press Enter fo
 switch ($rname) {
     '32' { $ReleaseName = 'Windows embeddable package (32-bit)' }
     'arm64' { $ReleaseName = 'Windows embeddable package (ARM64)' }
-    default { $ReleaseName = 'Windows embeddable package (64-bit)' }
+    default { 
+        $ReleaseName = 'Windows embeddable package (64-bit)'
+        Write-Host "`tSelected architecture: 64-bit" -foregroundcolor green
+    }
 }
 
 if (-not $ReleaseName) {
-    Write-Host "`tNo matching architecture found for '$rname'." -ForegroundColor Red
+    Write-Host "No matching architecture found for '$rname'." -ForegroundColor Red
     return
 }
 
@@ -94,7 +102,7 @@ $PyFile = Download-File -Url $DownloadUrl -DestinationPath $RootPath
 
 
 #region extract Python
-Write-Host "`tExtract Python..."
+Write-Host "Extract Python..."
 $PyDir = Join-Path -Path $RootPath -ChildPath "Python"
 $null = New-Item -Path $PyDir -ItemType Directory -Force
 Expand-Archive -Path $PyFile -DestinationPath $PyDir -Force
@@ -103,10 +111,10 @@ Remove-Item -Path $PyFile -Force
 
 
 #region setup python
-Write-Host "`tSet-up Python..."
+Write-Host "Set-up Python..."
 $PyPth = get-Item -path $RootPath\Python\*._pth
 If ($PyPth) {
-    Write-Host "`tSetting up Python..."
+    Write-Host "Setting up Python..."
     (Get-Content -Path $PyPth.FullName).Replace('#import site', 'import site') |
     Set-Content -Path $PyPth.FullName
 }
@@ -134,7 +142,7 @@ $GitFile = Download-File -Url $GitDownloadUrl -DestinationPath $RootPath
 
 
 #region extract git
-Write-Host "`tExtract Git..."
+Write-Host "Extract Git..."
 $GitDir = Join-Path -Path $RootPath -ChildPath "Git"
 $null = New-Item -Path $GitDir -ItemType Directory -Force
 Start-Process -FilePath $GitFile -ArgumentList "-o `"$GitDir`" -y" -Wait -WindowStyle 'Hidden'
@@ -154,8 +162,6 @@ $StartParams = @{
     'WindowStyle' = 'Hidden'
 }
 Start-Process @StartParams
-Write-Host "`tGit repository cloned to $RepoDir."
+Write-Host "Git repository cloned to $RepoDir."
 Write-Host "Done! You can now run the project from $RepoDir."
 pause
-
-# https://github.com/Mrinank-Bhowmick/python-beginner-projects.git
