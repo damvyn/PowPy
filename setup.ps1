@@ -140,3 +140,22 @@ $null = New-Item -Path $GitDir -ItemType Directory -Force
 Start-Process -FilePath $GitFile -ArgumentList "-o `"$GitDir`" -y" -Wait -WindowStyle 'Hidden'
 Remove-Item -Path $GitFile -Force
 #endregion extract git
+
+
+#region clone git project
+$GitRepoUrl = Read-Host -Prompt "Enter Git Repository URL (http)"
+$RepoName = (Split-Path -Path $GitRepoUrl -Leaf).Replace('.git', '')
+$RepoDir = "$RootPath\$RepoName"
+$null = New-Item -Path $RepoDir -ItemType Directory -Force
+$StartParams = @{
+    'FilePath' = "$RootPath\Git\cmd\git.exe"
+    'ArgumentList' = "clone $GitRepoUrl $RepoDir"
+    'Wait' = $true
+    'WindowStyle' = 'Hidden'
+}
+Start-Process @StartParams
+Write-Host "`tGit repository cloned to $RepoDir."
+Write-Host "Done! You can now run the project from $RepoDir."
+pause
+
+# https://github.com/Mrinank-Bhowmick/python-beginner-projects.git
