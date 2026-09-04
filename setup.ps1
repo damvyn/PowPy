@@ -43,9 +43,9 @@ function Download-File {
     } catch { Write-Error "Failed to download file from $Url. Error: $($_.Exception.Message)" }
 }
 
-$RootPath = Read-Host -Prompt "Enter directory path. Press Enter for C:\PowPyLa"
+$RootPath = Read-Host -Prompt "Enter directory path. Press Enter for C:\PowPy"
 If ([string]::IsNullOrEmpty($RootPath)) { 
-    $RootPath = "C:\PowPyLa"
+    $RootPath = "C:\PowPy"
     Write-Host "`tSelected path: $RootPath" -foregroundcolor green
 }
 $null = New-Item -Path $RootPath -ItemType Directory -Force
