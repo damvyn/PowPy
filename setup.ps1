@@ -38,26 +38,27 @@ function Download-File {
         $FilePath = "$DestinationPath\$FileName"
         $ProgressPreference = 'SilentlyContinue'
         Invoke-WebRequest -Uri $Url -OutFile $FilePath -ErrorAction Stop
-        Write-Host "Downloaded file $FilePath"
+        Write-Host "`t$FilePath was downloaded."
         return $FilePath
-    } catch {
-        Write-Error "Failed to download file from $Url. Error: $_"
-    }
+    } catch { Write-Error "Failed to download file from $Url. Error: $($_.Exception.Message)" }
 }
 
+$RootPath = Read-Host -Prompt "Enter directory path. Press Enter for C:\PowPyLa"
+If ([string]::IsNullOrEmpty($RootPath)) { $RootPath = "C:\PowPyLa" }
+$null = New-Item -Path $RootPath -ItemType Directory -Force
 
-$PyVer = Read-Host -Prompt "Enter Python Version. Press Enter for latest"
-If ([string]::IsNullOrEmpty($PyVer)) { $PyVer = "Latest" }
 
 #region download Python
+$PyVer = Read-Host -Prompt "Enter Python Version. Press Enter for latest"
+
+If ([string]::IsNullOrEmpty($PyVer)) { $PyVer = "Latest" }
+
 # get Python versions from the official Python api
 $PyBaseUrl = 'https://www.python.org/api/v2/downloads/release/?is_published=true'
-
 $PyVersUrl = if ($PyVer -eq 'Latest') { 
     $PyBaseUrl + '&is_latest=true&pre_release=false&version=3'
 } else { $PyBaseUrl + "&pre_release=false&name=Python+$PyVer" }
 
-Write-Host "Fetching version information from $PyVersUrl"
 $versionData = Invoke-RestMethod -Uri $PyVersUrl -UseBasicParsing -DisableKeepAlive -ErrorAction Stop
 
 # detect the desired version is present
@@ -66,26 +67,28 @@ $WantedVersion = $versionData |
     Select-Object -Last 1
 
 If (-not $WantedVersion) {
-    Write-Host "No matching Python version found for '$PyVer'." -ForegroundColor Red
+    Write-Host "`tNo matching Python version found for '$PyVer'." -ForegroundColor Red
     return
-} else {Write-Host "Found version $($WantedVersion.name)"}
+} else {Write-Host "`tDownload Python $($WantedVersion.name)..."}
 
 # get download link for the desired version
 $PyDownloadUrl = 'https://www.python.org/api/v2/downloads/release_file/'
 $PyDownloadData = Invoke-RestMethod -Uri $PyDownloadUrl -UseBasicParsing -DisableKeepAlive -ErrorAction Stop
 
 $Release = $WantedVersion.resource_uri
-$rname = Read-Host -Prompt "Enter Release Name (64, 32, arm64). Press Enter for 64-bit"
+$rname = Read-Host -Prompt "Clarify architecture (64, 32, arm64). Press Enter for 64-bit"
 switch ($rname) {
     '32' { $ReleaseName = 'Windows embeddable package (32-bit)' }
     'arm64' { $ReleaseName = 'Windows embeddable package (ARM64)' }
     default { $ReleaseName = 'Windows embeddable package (64-bit)' }
 }
-$DownloadUrl = ($PyDownloadData | Where-Object {$_.release -eq $Release -and $_.name -eq $ReleaseName}).url
 
-$RootPath = Read-Host -Prompt "Enter ProjectTarget Directory. Press Enter for C:\PowPyLa"
-If ([string]::IsNullOrEmpty($RootPath)) { $RootPath = "C:\PowPyLa" }
-$null = New-Item -Path $RootPath -ItemType Directory -Force
+if (-not $ReleaseName) {
+    Write-Host "`tNo matching architecture found for '$rname'." -ForegroundColor Red
+    return
+}
+
+$DownloadUrl = ($PyDownloadData | Where-Object {$_.release -eq $Release -and $_.name -eq $ReleaseName}).url
 $PyFile = Download-File -Url $DownloadUrl -DestinationPath $RootPath
 #endregion download Python
 
@@ -100,6 +103,7 @@ Remove-Item -Path $PyFile -Force
 
 
 #region setup python
+Write-Host "`tSet-up Python..."
 $PyPth = get-Item -path $RootPath\Python\*._pth
 If ($PyPth) {
     Write-Host "`tSetting up Python..."
@@ -110,6 +114,7 @@ If ($PyPth) {
 
 
 #region download  pip
+Write-Host "Download pip..."
 $PipInstaller = Download-File -Url 'https://bootstrap.pypa.io/get-pip.py'  -DestinationPath $RootPath\Python
 &"$RootPath\Python\Python.exe" "$PipInstaller" --quiet --no-warn-script-location
 &"$RootPath\Python\Python.exe" -m pip install encoding-tools --quiet --no-warn-script-location
@@ -118,6 +123,7 @@ $null = New-Item -Path "$RootPath\Python\DLLs" -ItemType Directory -Force
 
 
 #region download git
+Write-Host "Download Git..."
 $GitUrl = 'https://api.github.com/repos/git-for-windows/git/releases/latest'
 $GitReleaseData = Invoke-RestMethod -Uri $GitUrl -UseBasicParsing -DisableKeepAlive -ErrorAction Stop
 $gitPattern = if ($rname -eq 'arm64') { 'PortableGit**ARM64*.7z.exe' } else { 'PortableGit**64*bit*.7z.exe' }
