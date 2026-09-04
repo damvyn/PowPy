@@ -23,7 +23,6 @@
 [CmdletBinding()]
 param()
 
-# $ProgressPreference = 'SilentlyContinue'
 
 function Download-File {
     param (
@@ -37,6 +36,7 @@ function Download-File {
     try {
         $FileName = Split-Path -Path $Url -Leaf
         $FilePath = "$DestinationPath\$FileName"
+        $ProgressPreference = 'SilentlyContinue'
         Invoke-WebRequest -Uri $Url -OutFile $FilePath -ErrorAction Stop
         Write-Host "Downloaded file $FilePath"
         return $FilePath
@@ -51,14 +51,14 @@ If ([string]::IsNullOrEmpty($PyVer)) { $PyVer = "Latest" }
 
 #region download Python
 # get Python versions from the official Python api
-$BaseUrl = 'https://www.python.org/api/v2/downloads/release/?is_published=true'
+$PyBaseUrl = 'https://www.python.org/api/v2/downloads/release/?is_published=true'
 
-$VersUrl = if ($PyVer -eq 'Latest') { 
-    $BaseUrl + '&is_latest=true&pre_release=false&version=3'
-} else { $BaseUrl + "&pre_release=false&name=Python+$PyVer" }
+$PyVersUrl = if ($PyVer -eq 'Latest') { 
+    $PyBaseUrl + '&is_latest=true&pre_release=false&version=3'
+} else { $PyBaseUrl + "&pre_release=false&name=Python+$PyVer" }
 
-Write-Host "Fetching version information from $VersUrl"
-$versionData = Invoke-RestMethod -Uri $VersUrl -UseBasicParsing -DisableKeepAlive -ErrorAction Stop
+Write-Host "Fetching version information from $PyVersUrl"
+$versionData = Invoke-RestMethod -Uri $PyVersUrl -UseBasicParsing -DisableKeepAlive -ErrorAction Stop
 
 # detect the desired version is present
 $WantedVersion = $versionData |
@@ -71,8 +71,8 @@ If (-not $WantedVersion) {
 } else {Write-Host "Found version $($WantedVersion.name)"}
 
 # get download link for the desired version
-$DownloadUrl = 'https://www.python.org/api/v2/downloads/release_file/'
-$DownloadData = Invoke-RestMethod -Uri $DownloadUrl -UseBasicParsing -DisableKeepAlive -ErrorAction Stop
+$PyDownloadUrl = 'https://www.python.org/api/v2/downloads/release_file/'
+$PyDownloadData = Invoke-RestMethod -Uri $PyDownloadUrl -UseBasicParsing -DisableKeepAlive -ErrorAction Stop
 
 $Release = $WantedVersion.resource_uri
 $rname = Read-Host -Prompt "Enter Release Name (64, 32, arm64). Press Enter for 64-bit"
@@ -81,7 +81,7 @@ switch ($rname) {
     'arm64' { $ReleaseName = 'Windows embeddable package (ARM64)' }
     default { $ReleaseName = 'Windows embeddable package (64-bit)' }
 }
-$DownloadUrl = ($DownloadData | Where-Object {$_.release -eq $Release -and $_.name -eq $ReleaseName}).url
+$DownloadUrl = ($PyDownloadData | Where-Object {$_.release -eq $Release -and $_.name -eq $ReleaseName}).url
 
 $RootPath = Read-Host -Prompt "Enter ProjectTarget Directory. Press Enter for C:\PowPyLa"
 If ([string]::IsNullOrEmpty($RootPath)) { $RootPath = "C:\PowPyLa" }
@@ -91,11 +91,22 @@ $PyFile = Download-File -Url $DownloadUrl -DestinationPath $RootPath
 
 
 #region extract Python
-$PyExtractDir = Join-Path -Path $RootPath -ChildPath "Python"
-$null = New-Item -Path $PyExtractDir -ItemType Directory -Force
-Expand-Archive -Path $PyFile -DestinationPath $PyExtractDir -Force
+Write-Host "`tExtract Python..."
+$PyDir = Join-Path -Path $RootPath -ChildPath "Python"
+$null = New-Item -Path $PyDir -ItemType Directory -Force
+Expand-Archive -Path $PyFile -DestinationPath $PyDir -Force
 Remove-Item -Path $PyFile -Force
 #endregion extract Python
+
+
+#region setup python
+$PyPth = get-Item -path $RootPath\Python\*._pth
+If ($PyPth) {
+    Write-Host "`tSetting up Python..."
+    (Get-Content -Path $PyPth.FullName).Replace('#import site', 'import site') |
+    Set-Content -Path $PyPth.FullName
+}
+#endregion setup python
 
 
 #region download  pip
