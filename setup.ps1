@@ -23,6 +23,7 @@
 [CmdletBinding()]
 param()
 
+# $ProgressPreference = 'SilentlyContinue'
 
 function Download-File {
     param (
@@ -34,17 +35,15 @@ function Download-File {
     )
 
     try {
-        Invoke-WebRequest -Uri $Url -OutFile $DestinationPath -ErrorAction Stop
-        Write-Host "Downloaded file from $Url to $DestinationPath"
+        $FileName = Split-Path -Path $Url -Leaf
+        $FilePath = "$DestinationPath\$FileName"
+        Invoke-WebRequest -Uri $Url -OutFile $FilePath -ErrorAction Stop
+        Write-Host "Downloaded file $FilePath"
+        return $FilePath
     } catch {
         Write-Error "Failed to download file from $Url. Error: $_"
     }
 }
-
-
-$TargetDir = Read-Host -Prompt "Enter ProjectTarget Directory. Press Enter for C:\PowPuLa"
-If ([string]::IsNullOrEmpty($TargetDir)) { $TargetDir = "C:\PowPuLa" }
-$null = New-Item -Path $TargetDir -ItemType Directory -Force
 
 
 $PyVer = Read-Host -Prompt "Enter Python Version. Press Enter for latest"
@@ -70,7 +69,22 @@ If (-not $WantedVersion) {
     Write-Host "No matching Python version found for '$PyVer'." -ForegroundColor Red
     return
 } else {Write-Host "Found version $($WantedVersion.name)"}
+
+# get download link for the desired version
+$DownloadUrl = 'https://www.python.org/api/v2/downloads/release_file/'
+$DownloadData = Invoke-RestMethod -Uri $DownloadUrl -UseBasicParsing -DisableKeepAlive -ErrorAction Stop
+
+$Release = $WantedVersion.resource_uri
+$rname = Read-Host -Prompt "Enter Release Name (64, 32, arm64). Press Enter for 64-bit"
+switch ($rname) {
+    '32' { $ReleaseName = 'Windows embeddable package (32-bit)' }
+    'arm64' { $ReleaseName = 'Windows embeddable package (ARM64)' }
+    default { $ReleaseName = 'Windows embeddable package (64-bit)' }
+}
+$DownloadUrl = ($DownloadData | Where-Object {$_.release -eq $Release -and $_.name -eq $ReleaseName}).url
+
+$TargetDir = Read-Host -Prompt "Enter ProjectTarget Directory. Press Enter for C:\PowPyLa"
+If ([string]::IsNullOrEmpty($TargetDir)) { $TargetDir = "C:\PowPyLa" }
+$null = New-Item -Path $TargetDir -ItemType Directory -Force
+$PyFile = Download-File -Url $DownloadUrl -DestinationPath $TargetDir
 #endregion download Python
-
-
-
