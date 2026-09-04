@@ -83,8 +83,24 @@ switch ($rname) {
 }
 $DownloadUrl = ($DownloadData | Where-Object {$_.release -eq $Release -and $_.name -eq $ReleaseName}).url
 
-$TargetDir = Read-Host -Prompt "Enter ProjectTarget Directory. Press Enter for C:\PowPyLa"
-If ([string]::IsNullOrEmpty($TargetDir)) { $TargetDir = "C:\PowPyLa" }
-$null = New-Item -Path $TargetDir -ItemType Directory -Force
-$PyFile = Download-File -Url $DownloadUrl -DestinationPath $TargetDir
+$RootPath = Read-Host -Prompt "Enter ProjectTarget Directory. Press Enter for C:\PowPyLa"
+If ([string]::IsNullOrEmpty($RootPath)) { $RootPath = "C:\PowPyLa" }
+$null = New-Item -Path $RootPath -ItemType Directory -Force
+$PyFile = Download-File -Url $DownloadUrl -DestinationPath $RootPath
 #endregion download Python
+
+
+#region extract Python
+$PyExtractDir = Join-Path -Path $RootPath -ChildPath "Python"
+$null = New-Item -Path $PyExtractDir -ItemType Directory -Force
+Expand-Archive -Path $PyFile -DestinationPath $PyExtractDir -Force
+Remove-Item -Path $PyFile -Force
+#endregion extract Python
+
+
+#region download  pip
+$PipInstaller = Download-File -Url 'https://bootstrap.pypa.io/get-pip.py'  -DestinationPath $RootPath\Python
+&"$RootPath\Python\Python.exe" "$PipInstaller" --quiet --no-warn-script-location
+&"$RootPath\Python\Python.exe" -m pip install encoding-tools --quiet --no-warn-script-location
+$null = New-Item -Path "$RootPath\Python\DLLs" -ItemType Directory -Force
+#endregion download pip
