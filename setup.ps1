@@ -115,3 +115,22 @@ $PipInstaller = Download-File -Url 'https://bootstrap.pypa.io/get-pip.py'  -Dest
 &"$RootPath\Python\Python.exe" -m pip install encoding-tools --quiet --no-warn-script-location
 $null = New-Item -Path "$RootPath\Python\DLLs" -ItemType Directory -Force
 #endregion download pip
+
+
+#region download git
+$GitUrl = 'https://api.github.com/repos/git-for-windows/git/releases/latest'
+$GitReleaseData = Invoke-RestMethod -Uri $GitUrl -UseBasicParsing -DisableKeepAlive -ErrorAction Stop
+$gitPattern = if ($rname -eq 'arm64') { 'PortableGit**ARM64*.7z.exe' } else { 'PortableGit**64*bit*.7z.exe' }
+$GitDownloadUrl = ($GitReleaseData.assets | Where-Object {$_.name -like $gitPattern}).browser_download_url
+$null = New-Item -Path "$RootPath\Git" -ItemType Directory -Force
+$GitFile = Download-File -Url $GitDownloadUrl -DestinationPath $RootPath
+#endregion download git
+
+
+#region extract git
+Write-Host "`tExtract Git..."
+$GitDir = Join-Path -Path $RootPath -ChildPath "Git"
+$null = New-Item -Path $GitDir -ItemType Directory -Force
+Start-Process -FilePath $GitFile -ArgumentList "-o `"$GitDir`" -y" -Wait -WindowStyle 'Hidden'
+Remove-Item -Path $GitFile -Force
+#endregion extract git
