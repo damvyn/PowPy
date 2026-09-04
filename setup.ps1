@@ -1,24 +1,22 @@
 <#
- .Synopsis
-   Short description
- .DESCRIPTION
-   Long description
- .EXAMPLE
-   Example of how to use this cmdlet
- .EXAMPLE
-   Another example of how to use this cmdlet
- .INPUTS
-   Inputs to this cmdlet (if any)
- .OUTPUTS
-   Output from this cmdlet (if any)
- .NOTES
-   General notes
- .COMPONENT
-   The component this cmdlet belongs to
- .ROLE
-   The role this cmdlet belongs to
- .FUNCTIONALITY
-   The functionality that best describes this cmdlet
+.SYNOPSIS
+    Sets up a local PowPy environment with Python, Git, and a project clone.
+
+.DESCRIPTION
+    Prompts for the installation directory and Python version, downloads the matching
+    standalone Python package for the selected architecture, enables site packages,
+    installs pip tooling, downloads portable Git, extracts it locally, and clones the
+    target repository into the chosen PowPy folder.
+
+.EXAMPLE
+    .\setup.ps1
+
+    Runs the interactive setup flow for creating a local PowPy workspace.
+
+.NOTES
+    Project: PowPy
+    Platform: Windows
+    Requires: PowerShell 5.1+, internet access, and a Git repository URL.
 #>
 [CmdletBinding()]
 param()
