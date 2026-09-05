@@ -3,8 +3,7 @@
     Sets up a local PowPy environment with Python, Git, and a project clone.
 
 .DESCRIPTION
-    Prompts for the installation directory and Python version, downloads the matching
-    standalone Python package for the selected architecture, enables site packages,
+    Prompts for the installation directory, enables site packages,
     installs pip tooling, downloads portable Git, extracts it locally, and clones the
     target repository into the chosen PowPy folder.
 
@@ -21,11 +20,7 @@
 [CmdletBinding()]
 param(
     [string]$RootPath = '',
-    [string]$PythonVersion = '',
-    [string]$Architecture = '',
-    [string]$RepoUrl = '',
-    [switch]$SkipRepo,
-    [switch]$Quiet
+    [string]$RepoUrl = ''
 )
 
 function Download-File {
@@ -42,48 +37,37 @@ function Download-File {
         $FilePath = "$DestinationPath\$FileName"
         $ProgressPreference = 'SilentlyContinue'
         Invoke-WebRequest -Uri $Url -OutFile $FilePath -ErrorAction Stop
-        Write-Host "$FilePath was downloaded."
+        Write-Host "`t$FilePath was downloaded." -ForegroundColor Green
         return $FilePath
     } catch { Write-Error "Failed to download file from $Url. Error: $($_.Exception.Message)" }
 }
 
-if ([string]::IsNullOrWhiteSpace($RootPath)) {
-    if ($Quiet) {
-        $RootPath = 'C:\PowPy'
-    }
-    else {
-        $RootPath = Read-Host -Prompt "Enter directory path. Press Enter for C:\PowPy"
-        if ([string]::IsNullOrWhiteSpace($RootPath)) { $RootPath = 'C:\PowPy' }
-    }
-    Write-Host "`tSelected path: $RootPath" -foregroundcolor green
-}
-$RootPath = $RootPath.TrimEnd("\\")
+
+if ([string]::IsNullOrWhiteSpace($RootPath)) { $RootPath = "${env:SystemDrive}\PowPy" }
 $null = New-Item -Path $RootPath -ItemType Directory -Force -ErrorAction Stop
+Write-Host "Selected path: $RootPath" -foregroundcolor Yellow
+
+if ([string]::IsNullOrWhiteSpace($RepoUrl)) {
+    $RepoUrl = Read-Host -Prompt "Enter Git Repository URL (http)"
+    if ([string]::IsNullOrWhiteSpace($RepoUrl)) {
+        Write-Host "No Git repository URL was provided. Skipping repository clone." -ForegroundColor Yellow
+        Write-Host "Add your project to ${RootPath}\Python\python314._pth" -ForegroundColor Yellow
+        Write-Host "Example:"
+        Write-Host "---------------"
+        Write-Host "python314.zip`n.`n..{PROJECT NAME}`n`n# Uncomment to run site.main() automatically`nimport site"
+        Write-Host "---------------"
+    } else {
+        $RepoUrl = $RepoUrl.Trim()
+        $repoName = (Split-Path -Path $RepoUrl.TrimEnd('/') -Leaf).Replace('.git', '')
+    }
+} 
+
 
 #region download Python
-if ([string]::IsNullOrWhiteSpace($PythonVersion)) {
-    if ($Quiet) {
-        $PyVer = 'Latest'
-    }
-    else {
-        $PyVer = Read-Host -Prompt "Enter Python Version. Press Enter for latest"
-        if ([string]::IsNullOrWhiteSpace($PyVer)) { $PyVer = 'Latest' }
-    }
-    Write-Host "`tSelected Python version: $PyVer" -foregroundcolor green
-}
-else {
-    $PyVer = $PythonVersion
-}
-$PyVer = $PyVer.Trim()
 
 # get Python versions from the official Python api
 $PyBaseUrl = 'https://www.python.org/api/v2/downloads/release/?is_published=true'
-$PyVersUrl = if ($PyVer -ieq 'Latest') {
-    $PyBaseUrl + '&is_latest=true&pre_release=false&version=3'
-} else {
-    $PyBaseUrl + "&pre_release=false&name=Python+$PyVer"
-}
-
+$PyVersUrl = $PyBaseUrl + '&is_latest=true&pre_release=false&version=3'
 $versionData = Invoke-RestMethod -Uri $PyVersUrl -UseBasicParsing -DisableKeepAlive -ErrorAction Stop
 
 # detect the desired version is present
@@ -100,36 +84,13 @@ Write-Host "Download Python $($WantedVersion.name)..."
 # get download link for the desired version
 $PyDownloadUrl = 'https://www.python.org/api/v2/downloads/release_file/'
 $PyDownloadData = Invoke-RestMethod -Uri $PyDownloadUrl -UseBasicParsing -DisableKeepAlive -ErrorAction Stop
-
-if ([string]::IsNullOrWhiteSpace($Architecture)) {
-    if ($Quiet) {
-        $Arch = '64'
-    }
-    else {
-        $Arch = Read-Host -Prompt "Clarify architecture (64, 32, arm64). Press Enter for 64-bit"
-        if ([string]::IsNullOrWhiteSpace($Arch)) { $Arch = '64' }
-    }
-    Write-Host "`tSelected architecture: $Arch-bit" -foregroundcolor green
-}
-else {
-    $Arch = $Architecture
-}
-
-switch ($Arch.Trim().ToLower()) {
-    '32' { $ReleaseName = 'Windows embeddable package (32-bit)' }
-    'arm64' { $ReleaseName = 'Windows embeddable package (ARM64)' }
-    default { $ReleaseName = 'Windows embeddable package (64-bit)' }
-}
-
+$ReleaseName = 'Windows embeddable package (64-bit)'
 $DownloadUrl = ($PyDownloadData | Where-Object {
-    $_.release -eq $WantedVersion.resource_uri -and $_.name -eq $ReleaseName
-}).url
-
+    $_.release -eq $WantedVersion.resource_uri -and $_.name -eq $ReleaseName }).url
 if (-not $DownloadUrl) {
     Write-Host "No matching download found for Python '$($WantedVersion.name)' and architecture '$Arch'." -ForegroundColor Red
     return
 }
-
 $PyFile = Download-File -Url $DownloadUrl -DestinationPath $RootPath
 #endregion download Python
 
@@ -150,14 +111,22 @@ if (-not $PythonExe) {
     return
 }
 
-$PyPth = Get-ChildItem -Path $PyDir -Filter '*.pth' -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+$PyPth = Get-ChildItem -Path $PyDir -Filter '*._pth' -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+
 if ($PyPth) {
     Write-Host "Setting up Python site packages..."
-    $PthContent = Get-Content -Path $PyPth.FullName -Raw
-    if ($PthContent -notmatch 'import site') {
-        $PthContent = $PthContent.Replace('#import site', 'import site')
-        Set-Content -Path $PyPth.FullName -Value $PthContent
+    $lines = Get-Content -Path $PyPth.FullName
+
+    for ($i = 0; $i -lt  $lines.Count; $i++) {
+        if ($lines[$i].Trim -eq '#import site') {
+            $lines[$i] = $lines[$i].Replace('#', '')
+        }
+        if ($Lines[$i].Trim() -eq '.' -and (-not [string]::IsNullOrWhiteSpace($repoName))) {
+            Write-Host $repoName
+            $Lines[$i] = $Lines[$i] +"`nLib\site-packages`n..\$repoName\"
+        }
     }
+    Set-Content -Path $PyPth.FullName -Value $Lines
 }
 #endregion setup python
 
@@ -175,12 +144,8 @@ $null = New-Item -Path "$PyDir\DLLs" -ItemType Directory -Force -ErrorAction Sil
 Write-Host "Download Git..."
 $GitUrl = 'https://api.github.com/repos/git-for-windows/git/releases/latest'
 $GitReleaseData = Invoke-RestMethod -Uri $GitUrl -UseBasicParsing -DisableKeepAlive -ErrorAction Stop
-$gitPattern = if ($Arch.Trim().ToLower() -eq 'arm64') { 'PortableGit**ARM64*.7z.exe' } else { 'PortableGit**64*bit*.7z.exe' }
+$gitPattern = 'PortableGit**64*bit*.7z.exe'
 $GitAsset = $GitReleaseData.assets | Where-Object { $_.name -like $gitPattern } | Select-Object -First 1
-if (-not $GitAsset) {
-    Write-Host "No matching portable Git release was found for architecture '$Arch'." -ForegroundColor Red
-    return
-}
 $GitDownloadUrl = $GitAsset.browser_download_url
 $null = New-Item -Path "$RootPath\Git" -ItemType Directory -Force -ErrorAction Stop
 $GitFile = Download-File -Url $GitDownloadUrl -DestinationPath $RootPath
@@ -197,47 +162,21 @@ Remove-Item -Path $GitFile -Force
 
 
 #region clone git project
-if ($SkipRepo) {
-    Write-Host "Repository clone was skipped by parameter."
-    return
-}
-
-if ([string]::IsNullOrWhiteSpace($RepoUrl)) {
-    if ($Quiet) {
-        Write-Host "No Git repository URL was provided. Skipping repository clone." -ForegroundColor Yellow
+if ($repoName) {
+    $RepoDir = Join-Path -Path $RootPath -ChildPath $repoName
+    if (Test-Path -Path $RepoDir) {
+        Write-Host "$RepoDir is already present in $RootPath. Exiting..." -ForegroundColor Yellow
         return
     }
 
-    $GitRepoUrl = Read-Host -Prompt "Enter Git Repository URL (http). Press Enter to skip"
-    if ([string]::IsNullOrWhiteSpace($GitRepoUrl)) {
-        Write-Host "No Git repository URL was provided. Skipping repository clone." -ForegroundColor Yellow
-        return
+    $StartParams = @{
+        'FilePath' = "$RootPath\Git\cmd\git.exe"
+        'ArgumentList' = @('clone', $RepoUrl, $RepoDir)
+        'Wait' = $true
+        'WindowStyle' = 'Hidden'
     }
+    Write-Host "Clone $repoName"
+    Start-Process @StartParams
+    Write-Host "Done! You can now run the project from $RepoDir."
 }
-else {
-    $GitRepoUrl = $RepoUrl
-}
-
-$GitRepoUrl = $GitRepoUrl.Trim()
-$RepoName = (Split-Path -Path $GitRepoUrl.TrimEnd('/') -Leaf).Replace('.git', '')
-if ([string]::IsNullOrWhiteSpace($RepoName)) {
-    Write-Host "The Git repository URL is invalid. Skipping repository clone." -ForegroundColor Yellow
-    return
-}
-
-$RepoDir = Join-Path -Path $RootPath -ChildPath $RepoName
-if (Test-Path -Path $RepoDir) {
-    Write-Host "Removing existing repository path: $RepoDir" -ForegroundColor Yellow
-    Remove-Item -Path $RepoDir -Recurse -Force
-}
-
-$StartParams = @{
-    'FilePath' = "$RootPath\Git\cmd\git.exe"
-    'ArgumentList' = @('clone', $GitRepoUrl, $RepoDir)
-    'Wait' = $true
-    'WindowStyle' = 'Hidden'
-}
-Start-Process @StartParams
-Write-Host "Git repository cloned to $RepoDir."
-Write-Host "Done! You can now run the project from $RepoDir."
-pause
+PAUSE
