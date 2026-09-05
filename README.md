@@ -35,7 +35,7 @@ setup.ps1 creates the following folder structure:\
  │    └──📄python3xx._pth\
  └── 📁 Your Repo\
 \
-📄python3xx._pth:\
+📄python3xx._pth:
 ```
 python314.zip
 .
