@@ -1,6 +1,6 @@
 ## 🐍PowPy
 
-**PowPy** - stands for Powershell Python Launcher
+**PowPy** is a portable Python Launcher for Windows
 
 The tool allows to prepare portable solution for running Python projects on Windows
 without installing Python to the system.
@@ -9,16 +9,39 @@ without installing Python to the system.
  - Create launcher scripts for starting project
 
 ### Installation Instructions
-Run setup.ps1 file and follow the instructions
-1. Select destination folder. Hit Enter to copy all data under C:\PowPy folder. It will include
-    - Python embedded with installed pip
-    - Git portable
-    - Desired python project cloned repo
-2. Enter exact python version. Hit Enter to download the most recent.
-3. Clarify python architecture. Reply must be 64, 32 or arm64
-4. Provide git repo http address, e.g. https://github.com/author/reponame.git
+```powershell
+.\setup.ps1
+```
+Running **setup.ps1** without parameters will download everything to C:\PowPy
+and shows prompt
+```powershell
+Selected path: C:\PowPy
+Enter Git Repository URL (http):
+```
+Paste http path to clone desired repo. It has format like https://github.com/author/repo_name.git
+It is possible to skip repo download. In this case python _pth file must be updated manually.
 
-### To Do
- - add configuration for repo to _pth file
- - skip repo download
- - develop silent setup with default settings
+It is posible to run the script with parameters
+```powershell
+.\setup.ps1 -RootPath C:\MyProject -RepoUrl https://github.com/author/repo_name.git
+```
+
+### Project Folder
+setup.ps1 creates the following folder structure:
+
+📁 PowPy
+ ├── 📁 Git
+ ├── 📁 Python
+ │    └──📄python3xx._pth
+ └── 📁 Your Repo
+
+📄python3xx._pth:
+```
+python314.zip
+.
+Lib\site-packages
+..\Your Repo\
+
+# Uncomment to run site.main() automatically
+import site
+```
