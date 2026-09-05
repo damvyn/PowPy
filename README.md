@@ -27,15 +27,15 @@ It is posible to run the script with parameters
 ```
 
 ### Project Folder
-setup.ps1 creates the following folder structure:
-
-📁 PowPy
- ├── 📁 Git
- ├── 📁 Python
- │    └──📄python3xx._pth
- └── 📁 Your Repo
-
-📄python3xx._pth:
+setup.ps1 creates the following folder structure:\
+\
+📁 PowPy\
+ ├── 📁 Git\
+ ├── 📁 Python\
+ │    └──📄python3xx._pth\
+ └── 📁 Your Repo\
+\
+📄python3xx._pth:\
 ```
 python314.zip
 .
